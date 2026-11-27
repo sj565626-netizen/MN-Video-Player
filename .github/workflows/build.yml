@@ -1,0 +1,55 @@
+name: Build MN Video Player APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Find project (extract zip if needed)
+        run: |
+          set -e
+          if [ -f MN_VIDEO_PLAYER.zip ]; then
+            rm -rf _vp && mkdir _vp
+            unzip -oq MN_VIDEO_PLAYER.zip -d _vp
+            S=$(find _vp -name settings.gradle | head -1)
+          else
+            S=$(find . -maxdepth 3 -name settings.gradle | head -1)
+          fi
+          if [ -z "$S" ]; then echo "settings.gradle not found"; exit 1; fi
+          DIR=$(dirname "$S")
+          echo "Project folder: $DIR"
+          echo "PROJECT_DIR=$DIR" >> "$GITHUB_ENV"
+
+      - name: Accept Android SDK licenses and install platform
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKM" ]; then SDKM=$(command -v sdkmanager); fi
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Build debug APK
+        run: gradle --no-daemon -p "$PROJECT_DIR" assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MN-Video-Player-debug-apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
