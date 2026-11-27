@@ -23,17 +23,24 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Find project (extract zip if needed)
+      - name: Find project (extract any zip if needed)
         run: |
-          set -e
-          if [ -f MN_VIDEO_PLAYER.zip ]; then
+          echo "Files in repo:"
+          ls -la
+          S=$(find . -name settings.gradle -not -path "./_vp/*" | head -1)
+          if [ -z "$S" ]; then
             rm -rf _vp && mkdir _vp
-            unzip -oq MN_VIDEO_PLAYER.zip -d _vp
+            for z in $(find . -maxdepth 2 -iname "*.zip" -not -path "./_vp/*" | tr ' ' '#'); do
+              zz=$(echo "$z" | tr '#' ' ')
+              echo "Extracting: $zz"
+              unzip -oq "$zz" -d _vp || true
+            done
             S=$(find _vp -name settings.gradle | head -1)
-          else
-            S=$(find . -maxdepth 3 -name settings.gradle | head -1)
           fi
-          if [ -z "$S" ]; then echo "settings.gradle not found"; exit 1; fi
+          if [ -z "$S" ]; then
+            echo "ERROR: settings.gradle not found and no usable zip in the repo"
+            exit 1
+          fi
           DIR=$(dirname "$S")
           echo "Project folder: $DIR"
           echo "PROJECT_DIR=$DIR" >> "$GITHUB_ENV"
